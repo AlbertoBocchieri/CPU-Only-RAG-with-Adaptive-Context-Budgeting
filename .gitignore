@@ -1,0 +1,29 @@
+# OS / editor
+.DS_Store
+.vscode/
+.idea/
+
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+
+# Local runtime assets
+cache/*
+!cache/README.md
+
+data/*
+!data/README.md
+
+logs/*
+!logs/.gitkeep
+
+models/*
+!models/README.md
+
+results/*
+!results/generated/
+!results/generated/.gitkeep

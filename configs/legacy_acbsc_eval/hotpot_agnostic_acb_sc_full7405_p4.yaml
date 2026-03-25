@@ -1,0 +1,239 @@
+experiment:
+  name: qwen3b_cpu_rag
+  seed: 42
+  output_dir: results
+datasets:
+  qa:
+    name: hotpot_qa
+    train_size: 300
+    val_size: 150
+    test_size: 200
+    max_corpus_docs: 6000
+  hotpot_qa:
+    split: validation
+    tier_a_queries: 200
+    tier_b_queries: 1000
+    tier_c_queries: 7405
+  natural_questions:
+    split: validation
+    tier_a_queries: 200
+    tier_b_queries: 1000
+  beir:
+    names:
+    - scifact
+    - nfcorpus
+    - fiqa
+    - arguana
+    - quora
+    max_queries_per_dataset: 250
+chunking:
+  chunk_size_words: 140
+  chunk_overlap_words: 30
+  min_chunk_words: 40
+retrieval:
+  dense_model: intfloat/e5-base-v2
+  dense_prefix_query: 'query: '
+  dense_prefix_passage: 'passage: '
+  persist_embedding_cache: true
+  embedding_cache_dir: cache/embeddings
+  retriever_mode: hybrid
+  fusion_method: WEIGHTED_SUM
+  rrf_k: 60
+  weighted_alpha: 0.75
+  top_k_dense: 150
+  top_k_bm25: 250
+  top_k_final: 20
+  hybrid_alpha: 0.55
+  normalize_scores: true
+  agreement_bonus_enabled: false
+  multi_hop_enabled: true
+  multi_hop_mode: hybrid
+  multi_hop_top_seed_hits: 2
+  multi_hop_max_entities: 4
+  multi_hop_merge_rrf_k: 60
+  multi_hop_gate_enabled: false
+reranker:
+  enabled: false
+  model_name: cross-encoder/ms-marco-MiniLM-L-6-v2
+  top_k_in: 24
+  top_k_out: 8
+llm:
+  gguf_path: models/qwen2.5-3b-instruct-q4_k_m.gguf
+  n_ctx: 4096
+  n_threads: 4
+  n_batch: 512
+  temperature: 0.0
+  top_p: 0.9
+  max_new_tokens: 64
+  repeat_penalty: 1.08
+  stream_timing: true
+  context_packing: false
+  context_pack_words: 80
+  prompt_mode: direct
+  answer_postprocess_mode: basic
+  prefix_cache_enabled: false
+  prefix_cache_backend: ram
+  prefix_cache_capacity_mb: 256
+  prefix_cache_dir: cache/llama_prompt_cache
+  direct_prompt_template: 'Context:
+
+    {context}
+
+
+    Based on the context above, answer this question with just the answer, no explanation:
+
+
+    Q: {question}
+
+    A:
+
+    '
+context_budgeting:
+  enabled: true
+  k_low: 5
+  budget_low_tokens: 600
+  budget_high_tokens: 1200
+  margin_threshold: null
+  margin_threshold_quantile: 0.9
+  margin_threshold_stage2_glob: results/*/stage2/*/per_query.jsonl
+  margin_threshold_stage2_retriever_mode: hybrid
+  margin_threshold_fallback: 0.003
+  agreement_threshold: 0.35
+  use_rerank_scores_if_available: true
+  packing_mode_low: full_or_light
+  packing_mode_high: snippet
+  snippet_window_tokens: 80
+  max_chunks_hard_cap: 20
+  strategy: agnostic_acb_sc
+  stop_mode: coverage_locked_patience_v3
+  seed_min_items: 3
+  required_distinct_docs: 2
+  snippet_words: 120
+  min_snippet_words: 40
+  utility_relevance_weight: 0.55
+  utility_question_overlap_weight: 0.25
+  utility_novelty_weight: 0.1
+  utility_new_doc_weight: 0.1
+  patience: 2
+  single_evidence_extra_probe_candidates: 0
+  multi_document_spare_probe_candidates: 1
+  multi_document_exact_probe_candidates: 2
+  marginal_snippet_enabled: true
+  marginal_snippet_ratio: 0.6
+  marginal_snippet_min_words: 40
+  marginal_snippet_max_words: 72
+  comparison_guard_enabled: false
+  comparison_guard_extra_probe_enabled: false
+  prefill_target_ms: 18000
+  cap_bootstrap_tokens: 1024
+  cap_min_tokens: 768
+  cap_max_tokens: 1536
+  warmup_queries: 8
+  ewma_alpha: 0.2
+llm_runtime:
+  sp3_enabled: false
+  sp3_profile: BASELINE
+  threads_decode: 4
+  threads_batch: 4
+  batch_size: null
+  ubatch_size: null
+benchmark:
+  retrieval_ks:
+  - 1
+  - 2
+  - 5
+  - 10
+  - 20
+  - 50
+  - 100
+  generation_max_samples: 120
+  bootstrap_samples: 2000
+  permutation_trials: 2000
+profiling:
+  sampling_interval_ms: 200
+  profile_timeseries: false
+  timeseries_stride: 5
+  profile_power: false
+  power_sampling_interval_ms: 1000
+tiers:
+  A:
+    queries: 200
+  B:
+    queries: 1000
+  C:
+    hotpot_queries: 7405
+autotune:
+  trials_retrieval: 24
+  trials_generation: 14
+  random_seed: 42
+  stage1_candidates: 24
+  stage2_survivors: 6
+  stage3_finalists: 2
+  score_weights:
+    ttft: 0.02
+    rss: 0.01
+  search:
+    retriever_mode:
+    - hybrid
+    - dense_only
+    k:
+    - 5
+    - 10
+    - 20
+    reranker_enabled:
+    - false
+    - true
+    reranker_top_k_in:
+    - 20
+    - 50
+    context_packing:
+    - false
+    - true
+    prompt_variant:
+    - evidence_only
+    - multihop_short_reasoning
+    max_tokens:
+    - 64
+    - 128
+    chunk_size_words:
+    - 80
+    - 100
+    - 120
+    - 140
+    - 180
+    chunk_overlap_words:
+    - 10
+    - 20
+    - 30
+    - 40
+    top_k_dense:
+    - 20
+    - 40
+    - 60
+    top_k_bm25:
+    - 20
+    - 40
+    - 60
+    top_k_final:
+    - 5
+    - 8
+    - 10
+    hybrid_alpha:
+    - 0.35
+    - 0.45
+    - 0.55
+    - 0.65
+    llm_temperature:
+    - 0.0
+    - 0.1
+    - 0.2
+    - 0.3
+    llm_top_p:
+    - 0.85
+    - 0.9
+    - 0.95
+    llm_repeat_penalty:
+    - 1.0
+    - 1.05
+    - 1.1
+    - 1.15
