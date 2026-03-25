@@ -1,7 +1,6 @@
 # CPU-Only RAG on Multi-Hop QA
 
-This is a **code-focused, GitHub-ready** version of the project.
-It keeps only the source code and the minimum runtime assets needed to execute the pipeline correctly, while excluding paper artifacts, experimental results, query pools, and large local assets.
+Study of quality-latency-energy trade-offs for **CPU-only RAG** on multi-hop QA, with an **Adaptive Context Budgeting (ACB)** policy.
 
 ## What is included
 
