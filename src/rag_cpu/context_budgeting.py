@@ -573,8 +573,6 @@ def _build_agnostic_probe_controller(cb: dict[str, Any]) -> ContextController:
             "marginal_snippet_ratio": float(cb.get("marginal_snippet_ratio", 0.60)),
             "marginal_snippet_min_words": int(cb.get("marginal_snippet_min_words", 40)),
             "marginal_snippet_max_words": int(cb.get("marginal_snippet_max_words", 72)),
-            "comparison_guard_enabled": bool(cb.get("comparison_guard_enabled", False)),
-            "comparison_guard_extra_probe_enabled": bool(cb.get("comparison_guard_extra_probe_enabled", False)),
         }
     )
 

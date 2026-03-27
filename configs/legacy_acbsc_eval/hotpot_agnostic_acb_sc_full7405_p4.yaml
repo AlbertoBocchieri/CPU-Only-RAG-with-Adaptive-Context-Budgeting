@@ -122,8 +122,6 @@ context_budgeting:
   marginal_snippet_ratio: 0.6
   marginal_snippet_min_words: 40
   marginal_snippet_max_words: 72
-  comparison_guard_enabled: false
-  comparison_guard_extra_probe_enabled: false
   prefill_target_ms: 18000
   cap_bootstrap_tokens: 1024
   cap_min_tokens: 768

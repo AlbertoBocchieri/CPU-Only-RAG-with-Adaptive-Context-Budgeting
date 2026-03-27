@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-import re
 from statistics import median
 from typing import Any
 
@@ -17,28 +16,6 @@ class ContextSelectionResult:
 
 
 class ContextController:
-    DEFAULT_COMPARISON_GUARD_PREFIXES = ("which", "what", "who")
-    DEFAULT_COMPARISON_GUARD_CUES = (
-        "born first",
-        "born later",
-        "died first",
-        "died later",
-        "before",
-        "after",
-        "earlier",
-        "later",
-        "older",
-        "younger",
-        "first",
-        "last",
-        "higher",
-        "lower",
-        "larger",
-        "smaller",
-        "more",
-        "less",
-    )
-
     def __init__(self, config: dict[str, Any] | None = None):
         cfg = dict(config or {})
         self.enabled = bool(cfg.get("enabled", True))
@@ -71,18 +48,6 @@ class ContextController:
         self.marginal_snippet_ratio = float(cfg.get("marginal_snippet_ratio", 0.60))
         self.marginal_snippet_min_words = int(cfg.get("marginal_snippet_min_words", 40))
         self.marginal_snippet_max_words = int(cfg.get("marginal_snippet_max_words", 72))
-        self.comparison_guard_enabled = bool(cfg.get("comparison_guard_enabled", False))
-        self.comparison_guard_extra_probe_enabled = bool(cfg.get("comparison_guard_extra_probe_enabled", True))
-        self.comparison_guard_prefixes = tuple(
-            str(prefix).strip().lower()
-            for prefix in cfg.get("comparison_guard_prefixes", self.DEFAULT_COMPARISON_GUARD_PREFIXES)
-            if str(prefix).strip()
-        )
-        self.comparison_guard_cues = tuple(
-            str(cue).strip().lower()
-            for cue in cfg.get("comparison_guard_cues", self.DEFAULT_COMPARISON_GUARD_CUES)
-            if str(cue).strip()
-        )
 
     def _extra_probe_plan(
         self,
@@ -136,35 +101,6 @@ class ContextController:
                 int(self.marginal_snippet_max_words),
             )
         )
-
-    @staticmethod
-    def _normalize_query(query: str) -> str:
-        return " ".join(str(query).strip().lower().split())
-
-    def _comparison_guard_trace(self, query: str, coverage_goal: CoverageGoal) -> dict[str, Any]:
-        normalized_query = self._normalize_query(query)
-        prefix = normalized_query.split(" ", 1)[0] if normalized_query else ""
-        or_index = normalized_query.find(" or ")
-        matched_cues: list[str] = []
-        for cue in self.comparison_guard_cues:
-            pattern = r"\b" + re.escape(str(cue)).replace(r"\ ", r"\s+") + r"\b"
-            match = re.search(pattern, normalized_query)
-            if match and (or_index < 0 or match.start() < or_index):
-                matched_cues.append(str(cue))
-        triggered = bool(
-            self.comparison_guard_enabled
-            and coverage_goal == CoverageGoal.MULTI_DOCUMENT_EVIDENCE
-            and prefix in self.comparison_guard_prefixes
-            and " or " in f" {normalized_query} "
-            and matched_cues
-        )
-        return {
-            "comparison_guard_enabled": bool(self.comparison_guard_enabled),
-            "comparison_guard_triggered": bool(triggered),
-            "comparison_guard_reason": "comparative_choice" if triggered else "none",
-            "comparison_guard_matched_cues": list(matched_cues if triggered else []),
-            "comparison_guard_prefix": str(prefix),
-        }
 
     def _candidate_features(
         self,
@@ -285,17 +221,12 @@ class ContextController:
         seed_median_overlap = float(median(seed_overlaps))
         seed_median_tokens = int(median(seed_token_counts)) if seed_token_counts else 0
         seed_distinct_doc_count = int(len({row["doc_id"] for row in candidate_trace[: len(seed_token_counts)]}))
-        comparison_guard = self._comparison_guard_trace(query, coverage_goal)
-        comparison_guard_extra_probe_applied = False
         if self.stop_mode == "coverage_locked_patience_v3":
             extra_probe_candidates, extra_probe_reason = self._extra_probe_plan(
                 coverage_goal,
                 seed_distinct_doc_count,
                 required_distinct_docs,
             )
-            if comparison_guard["comparison_guard_triggered"] and self.comparison_guard_extra_probe_enabled:
-                extra_probe_candidates += 1
-                comparison_guard_extra_probe_applied = True
         else:
             extra_probe_candidates = self._legacy_extra_probe_candidates(coverage_goal)
             extra_probe_reason = "legacy_fixed"
@@ -311,7 +242,6 @@ class ContextController:
             )
         stop_counter = 0
         marginal_snippets_applied = 0
-        comparison_guard_full_margin_applied = False
 
         for rank, candidate in enumerate(candidates[len(selected_candidates) :], start=len(selected_candidates) + 1):
             features = self._candidate_features(
@@ -387,20 +317,10 @@ class ContextController:
             )
             remaining = max(0, int(budget_cap_tokens) - int(used_tokens))
             marginal_snippet_words = self._marginal_snippet_words(seed_median_tokens)
-            comparison_guard_full_margin_candidate = bool(
-                comparison_guard["comparison_guard_triggered"]
-                and marginal_snippet_candidate
-                and not comparison_guard_full_margin_applied
-                and candidate_full_tokens <= remaining
-            )
-            force_marginal_snippet = bool(
-                marginal_snippet_candidate and not comparison_guard_full_margin_candidate
-            )
+            force_marginal_snippet = bool(marginal_snippet_candidate)
             packing_policy_reason = "seed_full"
             if coverage_unlocked:
-                if comparison_guard_full_margin_candidate:
-                    packing_policy_reason = "comparison_guard_full_margin"
-                elif force_marginal_snippet:
+                if force_marginal_snippet:
                     packing_policy_reason = "post_unlock_marginal_snippet"
                 else:
                     packing_policy_reason = "post_unlock_strong_full"
@@ -424,7 +344,6 @@ class ContextController:
                         "packing_policy_reason": "budget_skipped",
                         "marginal_snippet_applied": bool(force_marginal_snippet),
                         "marginal_snippet_words": int(marginal_snippet_words if force_marginal_snippet else 0),
-                        "comparison_guard_full_margin_applied": bool(comparison_guard_full_margin_candidate),
                         "tokens_selected": 0,
                         "full_tokens": int(candidate_full_tokens),
                         "selected": False,
@@ -441,8 +360,6 @@ class ContextController:
                 marginal_snippets_applied += 1
             elif packing_mode == "snippet":
                 packing_policy_reason = "budget_forced_snippet"
-            if comparison_guard_full_margin_candidate and packing_mode == "full":
-                comparison_guard_full_margin_applied = True
             candidate_trace.append(
                 {
                     "rank": int(rank),
@@ -452,9 +369,6 @@ class ContextController:
                     "packing_policy_reason": packing_policy_reason,
                     "marginal_snippet_applied": bool(force_marginal_snippet and packing_mode == "snippet"),
                     "marginal_snippet_words": int(marginal_snippet_words if force_marginal_snippet else 0),
-                    "comparison_guard_full_margin_applied": bool(
-                        comparison_guard_full_margin_candidate and packing_mode == "full"
-                    ),
                     "tokens_selected": int(packed_tokens),
                     "full_tokens": int(candidate_full_tokens),
                     "selected": not stop_decision,
@@ -502,10 +416,6 @@ class ContextController:
             "marginal_snippet_min_words": int(self.marginal_snippet_min_words),
             "marginal_snippet_max_words": int(self.marginal_snippet_max_words),
             "marginal_snippets_applied": int(marginal_snippets_applied),
-            **comparison_guard,
-            "comparison_guard_extra_probe_enabled": bool(self.comparison_guard_extra_probe_enabled),
-            "comparison_guard_extra_probe_applied": bool(comparison_guard_extra_probe_applied),
-            "comparison_guard_full_margin_applied": bool(comparison_guard_full_margin_applied),
             "selected_count": len(selected_candidates),
             "selected_doc_count": len(seen_doc_ids),
             "context_item_ids_used": [c.item_id for c in selected_candidates],
