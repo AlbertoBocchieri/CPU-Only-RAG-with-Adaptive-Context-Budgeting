@@ -1,13 +1,7 @@
 # CPU-Only RAG on Multi-Hop QA
 
-Minimal public code bundle for a CPU-only Retrieval-Augmented Generation pipeline built around:
-
-- sparse + dense retrieval
-- optional hybrid fusion and query expansion
-- pre-generation context control with Adaptive Context Budgeting (ACB)
-- benchmark-oriented instrumentation for quality, latency, and optional power
-
-This repository is intentionally **code-focused**. It contains the runnable codebase and a minimal configuration set, but excludes the paper package, raw experiment outputs, query pools, and other large local assets.
+This is a **code-focused, GitHub-ready** version of the project.
+It keeps only the source code and the minimum runtime assets needed to execute the pipeline correctly, while excluding paper artifacts, experimental results, query pools, and large local assets.
 
 ## What this repository contains
 
